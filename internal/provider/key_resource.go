@@ -1,15 +1,20 @@
 package provider
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
+	"text/template"
 
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64default"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
+	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"golang.org/x/crypto/pbkdf2"
 )
@@ -39,6 +44,12 @@ func (r *keyResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *
 				Computed:            true,
 				Default: int64default.StaticInt64(100000),
 			},
+			"format": schema.StringAttribute{
+				MarkdownDescription: "Output format; will additionally be base64 encoded.",
+				Optional:            true,
+				Computed:            true,
+				Default: stringdefault.StaticString("{{.Key}}"),
+			},
 			"password": schema.StringAttribute{
 				MarkdownDescription: "Base secret.",
 				Required: 			 true,
@@ -55,11 +66,27 @@ func (r *keyResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *
 
 type keyResourceData struct {
 	Iterations      types.Int64  `tfsdk:"iterations"`
+	Format 			types.String `tfsdk:"format"`
 	Password        types.String `tfsdk:"password"`
 	Key 			types.String `tfsdk:"key"`
 }
 
-func (r keyResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+type toFmt struct {
+	Iterations      int
+	Salt           []byte
+	Key				[]byte
+}
+
+type request struct {
+	Plan *tfsdk.Plan
+}
+
+type response struct {
+	State *tfsdk.State
+	Diagnostics *diag.Diagnostics
+}
+
+func generate(ctx context.Context, req request, resp *response) {
 	var plan keyResourceData
 	diags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
@@ -73,11 +100,30 @@ func (r keyResource) Create(ctx context.Context, req resource.CreateRequest, res
 		return
 	}
 	dk := pbkdf2.Key([]byte(plan.Password.ValueString()), salt, int(plan.Iterations.ValueInt64()), 32, sha256.New)
-	dk64 :=	base64.StdEncoding.EncodeToString([]byte(dk))
+	var key bytes.Buffer
+	formatTemplate, err := template.New("format").Parse(plan.Format.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Format Error", err.Error())
+		return
+	}
+	err = formatTemplate.Execute(&key, toFmt{
+		Iterations: int(plan.Iterations.ValueInt64()),
+		Salt: salt,
+		Key: dk,
+	})
+	if err != nil {
+		resp.Diagnostics.AddError("Format Error", err.Error())
+		return
+	}
+	dk64 :=	base64.StdEncoding.EncodeToString(key.Bytes())
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("iterations"), plan.Iterations)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("format"), plan.Format)...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("password"), plan.Password)...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("key"), dk64)...)
-	
+}
+
+func (r keyResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	generate(ctx, request{Plan: &req.Plan}, &response{State: &resp.State, Diagnostics: &resp.Diagnostics})
 }
 
 func (r keyResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
@@ -85,23 +131,7 @@ func (r keyResource) Read(ctx context.Context, req resource.ReadRequest, resp *r
 }
 
 func (r keyResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	var plan keyResourceData
-	diags := req.Plan.Get(ctx, &plan)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-	var salt = make([]byte, 16)
-	_, err := rand.Read(salt[:])
-	if err != nil {
-		resp.Diagnostics.AddError("Salt Error", err.Error())
-		return
-	}
-	dk := pbkdf2.Key([]byte(plan.Password.ValueString()), salt, int(plan.Iterations.ValueInt64()), 32, sha256.New)
-	dk64 :=	base64.StdEncoding.EncodeToString([]byte(dk))
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("iterations"), plan.Iterations)...)
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("password"), plan.Password)...)
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("key"), dk64)...)
+	generate(ctx, request{Plan: &req.Plan}, &response{State: &resp.State, Diagnostics: &resp.Diagnostics})
 }
 
 func (r keyResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {

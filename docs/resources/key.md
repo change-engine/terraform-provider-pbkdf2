@@ -29,6 +29,7 @@ resource "pbkdf2_key" "example" {
 
 ### Optional
 
+- `format` (String) Output format; will additionally be base64 encoded.
 - `iterations` (Number) Number of iterations.
 
 ### Read-Only
