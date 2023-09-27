@@ -48,7 +48,7 @@ func (r *keyResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *
 				MarkdownDescription: "Output format; will additionally be base64 encoded.",
 				Optional:            true,
 				Computed:            true,
-				Default: stringdefault.StaticString("{{.Key}}"),
+				Default: stringdefault.StaticString("{{printf \"%s\" .Key}}"),
 			},
 			"password": schema.StringAttribute{
 				MarkdownDescription: "Base secret.",
