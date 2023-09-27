@@ -89,8 +89,8 @@ type response struct {
 
 func bin(len int, data int) string {
 	bs := make([]byte, 8)
-    binary.LittleEndian.PutUint64(bs, uint64(data))
-	return string(bs[:len])
+    binary.BigEndian.PutUint64(bs, uint64(data))
+	return string(bs[8-len:])
 }
 
 func generate(ctx context.Context, req request, resp *response) {
