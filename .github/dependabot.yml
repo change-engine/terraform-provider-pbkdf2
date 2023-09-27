@@ -5,10 +5,10 @@ updates:
     directory: "/"
     schedule:
       interval: "daily"
-      time: "04:11"
+      time: "02:03"
 
   - package-ecosystem: "gomod"
     directory: "/"
     schedule:
       interval: "daily"
-      time: "04:11"
+      time: "02:03"
