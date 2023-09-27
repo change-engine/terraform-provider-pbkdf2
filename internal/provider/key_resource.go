@@ -87,9 +87,9 @@ type response struct {
 	Diagnostics *diag.Diagnostics
 }
 
-func bin(len int, data uint64) string {
+func bin(len int, data int) string {
 	bs := make([]byte, 8)
-    binary.BigEndian.PutUint64(bs, data)
+    binary.BigEndian.PutUint64(bs, uint64(data))
 	return string(bs[8-len:])
 }
 
