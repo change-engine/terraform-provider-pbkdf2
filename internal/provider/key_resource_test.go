@@ -33,6 +33,7 @@ func testAccKeyResourceConfig(password string) string {
 	return fmt.Sprintf(`
 resource "pbkdf2_key" "test" {
   password = %[1]q
+  format   = "v01{{bin 3 .Iterations}}{{printf \"%%s\" .Key}}"
 }
 `, password)
 }

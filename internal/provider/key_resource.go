@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/binary"
 	"text/template"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -86,6 +87,12 @@ type response struct {
 	Diagnostics *diag.Diagnostics
 }
 
+func bin(len int, data uint64) string {
+	bs := make([]byte, 8)
+    binary.BigEndian.PutUint64(bs, data)
+	return string(bs[8-len:])
+}
+
 func generate(ctx context.Context, req request, resp *response) {
 	var plan keyResourceData
 	diags := req.Plan.Get(ctx, &plan)
@@ -101,7 +108,11 @@ func generate(ctx context.Context, req request, resp *response) {
 	}
 	dk := pbkdf2.Key([]byte(plan.Password.ValueString()), salt, int(plan.Iterations.ValueInt64()), 32, sha256.New)
 	var key bytes.Buffer
-	formatTemplate, err := template.New("format").Parse(plan.Format.ValueString())
+	formatTemplate := template.New("format")
+	formatTemplate.Funcs(template.FuncMap{
+		"bin": bin,
+	})
+	_, err = formatTemplate.Parse(plan.Format.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Format Error", err.Error())
 		return
