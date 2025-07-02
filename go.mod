@@ -1,11 +1,11 @@
 module github.com/change-engine/terraform-provider-pbkdf2
 
-go 1.23.0
+go 1.23.7
 
-toolchain go1.23.6
+toolchain go1.24.4
 
 require (
-	github.com/hashicorp/terraform-plugin-docs v0.21.0
+	github.com/hashicorp/terraform-plugin-docs v0.22.0
 	github.com/hashicorp/terraform-plugin-framework v1.15.0
 	github.com/hashicorp/terraform-plugin-go v0.28.0
 	github.com/hashicorp/terraform-plugin-testing v1.13.2
